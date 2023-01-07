@@ -22,15 +22,22 @@ CLK         | 13
 #define COUNTERCLOCKWISE -1
 
 unsigned long prevTime = 0;
+unsigned long prevTime_button = 0;
+unsigned long prevTime_print = 0;
 double speedRPM = 0;
-double resolution = ONE;
-void startButton();
+int resolution_i = 1;
 
+double resolutions[5] = {0.1, 1, 10, 100, 1000};
+char printBuf[30] = {0};
+
+void ButtonBounce();
+int button_pressed = 0;
 
 LedControl lc = LedControl(12,11,10,1);
 // IRE1 is on digital pin 5	which is PD5 or PCINT21
 // IRE2 is on digital pin 6 which is PD6 or PCINT22
 int IRE_Direction = 0;
+volatile int interrupt_flag = 0;
 ISR (PCINT2_vect){	// all PCINT23~16 share the same vector
 	interrupt_flag = 1;
 	// The interrupt flag is the PCIF2 bit in PCIFR but we don't need this
@@ -40,7 +47,7 @@ void setup(){
     lc.shutdown(0,false);
     lc.setIntensity(0,8);
     lc.clearDisplay(0);
-	
+
 	// Pin Setup
 	DDRD &= ~((1<<DDD5)|(1<<DDD6));	// Input
 
@@ -58,26 +65,35 @@ void loop(){
 	if (interrupt_flag == 1){
 		IRE_Direction = ((PIND & (1<<IRE1)) <<1)^(PIND & (1<<IRE2))?CLOCKWISE:COUNTERCLOCKWISE;
 		// Based on truth table for pin state vs direction (IRE1 XOR IRE2 = CW)
-		position += RESOLUTION*IRE_Direction;
+		speedRPM += resolutions[resolution_i]*IRE_Direction;
+		Serial.print("Changed to ");
 		interrupt_flag = 0;
 	}
-	
-	switch (multiplierSelect){
-		
-		RESOLUTION ++
-		
+
+	if ((millis() - prevTime_button >= 100) && button_pressed){
+		resolution_i = (resolution_i++)%5+1;
+		prevTime_button = millis();
+    }
+
+    if(millis() - prevTime_print >= 250){
+		sprintf(printBuf, "%lf\n",speedRPM);
+		Serial.print(printBuf);
+		prevTime_print = millis();
+	}
+
 }
 
-void startButton(){
-	
-	static int Button_f = 0;
-	Button_f += !digitalRead(START_BUTTON_PIN);
 
-	if (Button_f && digitalRead(START_BUTTON_PIN)){
-		/* the start flag */ = 1;
+void ButtonBounce(){
+
+	static int Button_f = 0;
+	Button_f += !digitalRead(MULTIPLIER_BUTTON_PIN);
+
+	if (Button_f && digitalRead(MULTIPLIER_BUTTON_PIN)){
+		button_pressed = 1;
 		Button_f = 0;
 	}
 	else {
-		/* the start flag */ = 0;
+		button_pressed = 0;
 	}
 }
