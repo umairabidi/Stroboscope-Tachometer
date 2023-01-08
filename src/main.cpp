@@ -32,9 +32,9 @@ int multiplier_LEDs[5] = {LED_1, LED_2, LED_3, LED_4, LED_5};
 unsigned long prevTime = 0;
 unsigned long prevTime_button = 0;
 unsigned long prevTime_print = 0;
-long double speedRPM = 0;
+long speedRPM = 0;
 int resolution_i = 1;
-double resolutions[5] = {0.1, 1, 10, 100, 1000};
+long resolutions[5] = {1, 5, 50, 500, 5000};
 
 char printBuf[30] = {0};
 
@@ -43,7 +43,7 @@ char printBuf[30] = {0};
 int button_pressed = 0;
 
 void ButtonBounce();
-void displayNum(double value);
+void displayNum(long value);
 
 LedControl lc = LedControl(12,11,10,1);
 
@@ -95,7 +95,10 @@ void loop(){
 	if (interrupt_flag == 1){
 		IRE_Direction = ((PIND & (1<<IRE1)) <<1)^(PIND & (1<<IRE2))?CLOCKWISE:COUNTERCLOCKWISE;
 		// Based on truth table for pin state vs direction (IRE1 XOR IRE2 = CW)
-		speedRPM += resolutions[resolution_i-1]*IRE_Direction/2.0;
+		speedRPM += resolutions[resolution_i-1]*IRE_Direction;
+		if (speedRPM <= 1){
+			speedRPM = 1;
+		}
 		interrupt_flag = 0;
 	}
 
@@ -108,7 +111,7 @@ void loop(){
 //		Serial.print(printBuf);
 		
 		prevTime_print = millis();
-		//Serial.println(speedRPM);
+		Serial.println(speedRPM);
 		displayNum(speedRPM);
 	}
 
@@ -119,7 +122,10 @@ void ButtonBounce(){
 	static long Button_f = 0;
 	Button_f += !digitalRead(MULTIPLIER_BUTTON_PIN);
 
-	if (Button_f && digitalRead(MULTIPLIER_BUTTON_PIN)){
+	if (Button_f >= 60000){
+		speedRPM = 1;
+	}
+	else if (Button_f && digitalRead(MULTIPLIER_BUTTON_PIN)){
 		Serial.print("button_f");
 		Serial.println(Button_f);
 		button_pressed = 1;
@@ -128,33 +134,26 @@ void ButtonBounce(){
 	else {
 		button_pressed = 0;
 	}
-	if (Button_f >= 50000){
-		speedRPM = 1.0;
-	}
+	
 }
 
-void displayNum(double value){
-	int input = (int) (value*10);
+void displayNum(long value){
 	bool blank = true;
 	int digits[8] = {0};
 	for (int i=7; i>=0; i--){
-		digits[i] = input%10;
-		input /= 10;
+		digits[i] = value%10;
+		value /= 10;
 	}
-	for (int i=0; i<=7; i++){
-		Serial.print(digits[i]);
-	}
-	Serial.println("");
-	
-
-	for (int i=0; i<=7; i++){
+	for (int i=0; i<=5; i++){
 		if (blank && !digits[i]){
 			lc.setChar(0,7-i,' ',false);
 		}
 		else {
-			lc.setDigit(0,7-i,digits[i],i==6);
+			lc.setDigit(0,7-i,digits[i],false);
 			blank = false;
 		}
-		input /= 10;
+		lc.setDigit(0,1,digits[6],true);
+		lc.setDigit(0,0,digits[7],false);
+		value /= 10;
 	}
 }
