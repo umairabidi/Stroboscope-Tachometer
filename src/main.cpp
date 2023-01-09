@@ -13,8 +13,8 @@ CS          | 10
 CLK         | 13
 */
 
-#define LED_PIN 7
-#define MULTIPLIER_BUTTON_PIN A5
+#define LED_PIN 2
+#define MULTIPLIER_BUTTON_PIN 8
 
 #define IRE1 PD5
 #define IRE2 PD6
@@ -34,12 +34,12 @@ unsigned long prevTime_button = 0;
 unsigned long prevTime_print = 0;
 unsigned long prevTime_LED = 0;
 long speedRPM = 0;
-int resolution_i = 1;
+int resolution_i = 3;
 long resolutions[5] = {1, 5, 50, 500, 5000};
+unsigned long TimeHIGH;
+bool LED_state = LOW;
 
 char printBuf[30] = {0};
-
-
 
 int button_pressed = 0;
 
@@ -101,9 +101,10 @@ void loop(){
 		// Based on truth table for pin state vs direction (IRE1 XOR IRE2 = CW)
 		speedRPM += resolutions[resolution_i-1]*IRE_Direction;
 		if (speedRPM <= 1){
-			speedRPM = 1;
+			speedRPM = 10;
 		}
 		interrupt_flag = 0;
+		TimeHIGH = 60000000/speedRPM;	// µs Only update it if it changes
 	}
 
 	if(millis() - prevTime_print >= 150){
@@ -124,17 +125,19 @@ void loop(){
 	// 100 RPM -- TH = 60 ms
 	// 500 RPM -- TH = 12 ms
 	// 1000 RPM -- TH = 6 ms
-	unsigned long TimeHIGH = 60000/speedRPM;	// µs
-	if (millis() - prevTime_LED >= 10*TimeHIGH){
-		digitalWrite(LED_PIN, LOW);
-		prevTime_LED = millis();
-	}
-	else if (millis() - prevTime_LED >= 9*TimeHIGH){
+	
+	if ((micros() - prevTime_LED >= 9*TimeHIGH)&&(!LED_state)){
 		digitalWrite(LED_PIN, HIGH);
+		LED_state = HIGH;
+		prevTime_LED = micros();
 	}
-	 Serial.print(TimeHIGH);
-	 Serial.print(" ");
-	 Serial.println(millis());
+	else if ((micros() - prevTime_LED >= TimeHIGH)&&(LED_state)){
+		digitalWrite(LED_PIN, LOW);
+		LED_state = LOW;
+		prevTime_LED = micros();
+	}
+	//sprintf(printBuf,"%ld %ld\n",micros(), prevTime_LED);
+	//Serial.print(printBuf);
 	
 }
 
