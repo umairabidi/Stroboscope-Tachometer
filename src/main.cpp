@@ -32,6 +32,7 @@ int multiplier_LEDs[5] = {LED_1, LED_2, LED_3, LED_4, LED_5};
 unsigned long prevTime = 0;
 unsigned long prevTime_button = 0;
 unsigned long prevTime_print = 0;
+unsigned long prevTime_LED = 0;
 long speedRPM = 0;
 int resolution_i = 1;
 long resolutions[5] = {1, 5, 50, 500, 5000};
@@ -58,9 +59,11 @@ ISR (PCINT2_vect){	// all PCINT23~16 share the same vector
 
 void setup(){
     lc.shutdown(0,false);
-    lc.setIntensity(0,8);
+    lc.setIntensity(0,15);
     lc.clearDisplay(0);
 	Serial.begin(115200);
+	pinMode(LED_PIN, OUTPUT);
+	pinMode(MULTIPLIER_BUTTON_PIN, INPUT);
 	
 	// Pin Setup
 	DDRD &= ~((1<<DDD5)|(1<<DDD6));	// Input
@@ -81,11 +84,12 @@ void loop(){
 	if ((millis() - prevTime_button >= 250) && button_pressed){
 		resolution_i = (resolution_i++)%5+1;
 		prevTime_button = millis();
-		digitalWrite(multiplier_LEDs[0], LOW);
-		digitalWrite(multiplier_LEDs[1], LOW);
-		digitalWrite(multiplier_LEDs[2], LOW);
-		digitalWrite(multiplier_LEDs[3], LOW);
-		digitalWrite(multiplier_LEDs[4], LOW);
+//		digitalWrite(multiplier_LEDs[0], LOW);
+//		digitalWrite(multiplier_LEDs[1], LOW);
+//		digitalWrite(multiplier_LEDs[2], LOW);
+//		digitalWrite(multiplier_LEDs[3], LOW);
+//		digitalWrite(multiplier_LEDs[4], LOW);
+//		digitalWrite(multiplier_LEDs[(resolution_i+=4)%5-1], LOW);
 		digitalWrite(multiplier_LEDs[resolution_i-1], HIGH);
 		
 		Serial.print("Resolution is ");
@@ -102,19 +106,36 @@ void loop(){
 		interrupt_flag = 0;
 	}
 
-	
-
-    if(millis() - prevTime_print >= 150){
+	if(millis() - prevTime_print >= 150){
 //    	char s[8] = {0};
 //    	dtostrf(speedRPM,8,1,s);
 //		sprintf(printBuf,"%s rpm\n",s);
 //		Serial.print(printBuf);
 		
 		prevTime_print = millis();
-		Serial.println(speedRPM);
+		//Serial.println(speedRPM);
 		displayNum(speedRPM);
 	}
 
+	// Light up the LED with a 10% duty cycle
+	// For a given RPM, the Time_HIGH is 6/RPM (in seconds) or 6000/RPM in milliseconds.
+	// This entire loop runs (minus this LED code) at something like 60000 loops per second
+	// Typical values:
+	// 100 RPM -- TH = 60 ms
+	// 500 RPM -- TH = 12 ms
+	// 1000 RPM -- TH = 6 ms
+	unsigned long TimeHIGH = 60000/speedRPM;	// µs
+	if (millis() - prevTime_LED >= 10*TimeHIGH){
+		digitalWrite(LED_PIN, LOW);
+		prevTime_LED = millis();
+	}
+	else if (millis() - prevTime_LED >= 9*TimeHIGH){
+		digitalWrite(LED_PIN, HIGH);
+	}
+	 Serial.print(TimeHIGH);
+	 Serial.print(" ");
+	 Serial.println(millis());
+	
 }
 
 
@@ -124,6 +145,7 @@ void ButtonBounce(){
 
 	if (Button_f >= 60000){
 		speedRPM = 1;
+		Button_f = 0;
 	}
 	else if (Button_f && digitalRead(MULTIPLIER_BUTTON_PIN)){
 		Serial.print("button_f");
